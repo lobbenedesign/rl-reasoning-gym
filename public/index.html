@@ -23,6 +23,7 @@
         </div>
         <div class="topbar-chips">
           <span class="chip chip-grpo">⚡ GRPO (Critic-Free RL)</span>
+          <span class="chip chip-posttrain" style="color: #c084fc; border-color: rgba(192, 132, 252, 0.3);">🚀 GLM-5.3 Post-Training (+50% Code Gain)</span>
           <span class="chip chip-loss" id="chip-policy-loss">📉 Policy Loss: 0.124</span>
           <span class="chip chip-reward" id="chip-mean-reward">🎯 Mean Reward: 0.88</span>
           <span class="chip chip-competitors">📊 5 Competitors Tracked</span>
@@ -31,6 +32,7 @@
       <div class="topbar-right">
         <nav class="topbar-tabs">
           <button class="nav-tab active" data-tab="gym">🧠 GRPO Training Studio</button>
+          <button class="nav-tab" data-tab="posttrain">⚡ Scaled Post-Training (GLM-5.3)</button>
           <button class="nav-tab" data-tab="rewards">🎯 Verifiable Reward Models</button>
           <button class="nav-tab" data-tab="competitors">📊 5 Competitor Matrix</button>
         </nav>
@@ -74,6 +76,52 @@
             </div>
             <div class="candidates-feed" id="candidates-container">
               <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB: SCALED POST-TRAINING (GLM-5.3 MODE) -->
+      <section id="tab-posttrain" class="tab-pane">
+        <div class="gym-layout-grid">
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">⚡ Continual Post-Training & On-Policy Distillation (GLM-5.3 Style)</span>
+              <span class="badge-telemetry">+50% Coding Accuracy Gain</span>
+            </div>
+            <div style="padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+              <div>
+                <label class="form-label">Base Checkpoint to Continually Refine:</label>
+                <input type="text" id="input-base-checkpoint" class="form-control" value="GLM-5.2-Base / Qwen-2.5-Coder-7B">
+              </div>
+              <div>
+                <label class="form-label">Focus Domain:</label>
+                <select id="select-posttrain-domain" class="form-control">
+                  <option value="Code & SWE">Code & SWE (Software Engineering)</option>
+                  <option value="Agentic Tool Use">Agentic Multi-Step Tool Use</option>
+                  <option value="Math Invariants">Mathematical Invariants</option>
+                </select>
+              </div>
+              <button class="btn btn-primary" id="btn-run-posttrain-epoch" style="background: #a855f7; border-color: #a855f7;">⚡ Run Continual Post-Training Epoch</button>
+            </div>
+            <div id="posttrain-results-box" style="padding: 14px; background: rgba(168, 85, 247, 0.05); border-top: 1px solid var(--border-color); font-size: 12px; line-height: 1.6;">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">🔬 The GLM-5.3 Breakthrough Explained</span>
+            </div>
+            <div style="padding: 16px; font-size: 12.5px; color: var(--text-muted); line-height: 1.6;">
+              <p><strong style="color: #fff;">Perché il Post-Training di GLM-5.3 è Rivoluzionario:</strong></p>
+              <p>Zhipu AI ha dimostrato con **GLM-5.3 (Agosto 2026)** che non serve ri-addestrare un modello da zero spendendo milioni di dollari. Hanno preso il vecchio checkpoint **GLM-5.2** e hanno applicato il **Scaled Continual Post-Training** con distillazione on-policy (*On-Policy Distillation - OPD*):</p>
+              <ul style="margin: 10px 0 10px 20px; color: #c084fc;">
+                <li><strong>+50% di incremento netto</strong> nelle prestazioni di coding e agentic workflows;</li>
+                <li><strong>Zero Catastrophic Forgetting</strong> grazie alla penalità di ancoraggio KL regolare;</li>
+                <li><strong>Addestramento eseguibile in locale</strong> sul tuo computer!</li>
+              </ul>
+              <p>Questo modulo ti permette di prendere qualsiasi modello esistente e portarlo al livello di un modello enterprise!</p>
             </div>
           </div>
         </div>

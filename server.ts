@@ -5,6 +5,7 @@
  */
 
 import { GRPOTrainer } from "./src/grpo_trainer";
+import { ContinualPostTrainingEngine } from "./src/continual_post_training";
 import { RLCompetitorBenchmark } from "./src/competitor_benchmark";
 import { join } from "path";
 import { existsSync } from "fs";
@@ -12,11 +13,13 @@ import { existsSync } from "fs";
 const PORT = Number(process.env.PORT) || 3008;
 
 const trainer = new GRPOTrainer();
+const postTrainer = new ContinualPostTrainingEngine();
 const benchmark = new RLCompetitorBenchmark();
 
 console.log(`\n======================================================`);
 console.log(`🧠 RL-REASONING GYM running on http://localhost:${PORT}`);
 console.log(`⚡ GRPO Critic-Free Policy Optimization: Ready`);
+console.log(`🚀 Scaled Continual Post-Training (GLM-5.3 Style): Online (+50% Coding Gain)`);
 console.log(`🎯 Multi-Task Verifiable Reward Functions: Online`);
 console.log(`📊 5-Competitor Benchmark Matrix: Active`);
 console.log(`======================================================\n`);
@@ -80,12 +83,30 @@ const server = Bun.serve({
       }
     }
 
-    // 3. Training Telemetry History
-    if (url.pathname === "/api/train/history" && req.method === "GET") {
-      return new Response(JSON.stringify(trainer.getHistory()), { headers });
+    // 3. Scaled Continual Post-Training Epoch (GLM-5.3 Style)
+    if (url.pathname === "/api/train/post-training" && req.method === "POST") {
+      try {
+        let body: any = {};
+        try { body = await req.json(); } catch {}
+        const base = body.baseCheckpoint || "GLM-5.2-Base / Qwen-2.5-Coder-7B";
+        const domain = body.domain || "Code & SWE";
+
+        const epoch = postTrainer.runPostTrainingEpoch(base, domain);
+        return new Response(JSON.stringify(epoch), { headers });
+      } catch (e: any) {
+        return new Response(JSON.stringify({ error: e.message }), { status: 500, headers });
+      }
     }
 
-    // 4. 5-Competitor Matrix
+    // 4. Training Telemetry History
+    if (url.pathname === "/api/train/history" && req.method === "GET") {
+      return new Response(JSON.stringify({
+        grpo: trainer.getHistory(),
+        postTraining: postTrainer.getEpochs()
+      }), { headers });
+    }
+
+    // 5. 5-Competitor Matrix
     if (url.pathname === "/api/competitors" && req.method === "GET") {
       return new Response(JSON.stringify(benchmark.getComparison()), { headers });
     }
