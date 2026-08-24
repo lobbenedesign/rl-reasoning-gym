@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RL-Reasoning Gym — GRPO DeepSeek-R1 Reinforcement Learning Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- TOPBAR -->
+    <header class="app-topbar">
+      <div class="topbar-left">
+        <div class="app-logo">
+          <span class="logo-icon">🧠</span>
+          <div class="logo-text">
+            <span class="logo-title">RL-Reasoning Gym</span>
+            <span class="logo-badge">GRPO DeepSeek-R1 v1.0</span>
+          </div>
+        </div>
+        <div class="topbar-chips">
+          <span class="chip chip-grpo">⚡ GRPO (Critic-Free RL)</span>
+          <span class="chip chip-loss" id="chip-policy-loss">📉 Policy Loss: 0.124</span>
+          <span class="chip chip-reward" id="chip-mean-reward">🎯 Mean Reward: 0.88</span>
+          <span class="chip chip-competitors">📊 5 Competitors Tracked</span>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <nav class="topbar-tabs">
+          <button class="nav-tab active" data-tab="gym">🧠 GRPO Training Studio</button>
+          <button class="nav-tab" data-tab="rewards">🎯 Verifiable Reward Models</button>
+          <button class="nav-tab" data-tab="competitors">📊 5 Competitor Matrix</button>
+        </nav>
+      </div>
+    </header>
+
+    <!-- CONTENT -->
+    <main class="app-content">
+      <!-- TAB 1: GRPO TRAINING STUDIO -->
+      <section id="tab-gym" class="tab-pane active">
+        <div class="gym-layout-grid">
+          <!-- Left: Training Curves Canvas & Inputs -->
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">📈 Real-Time GRPO Policy Loss & Reward Curves</span>
+              <span class="badge-nominal" id="badge-step-counter">Step #1</span>
+            </div>
+            <div class="canvas-chart-container">
+              <canvas id="grpo-loss-canvas" width="600" height="240"></canvas>
+            </div>
+            <div style="padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+              <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 10px;">
+                <div>
+                  <label class="form-label">Training Prompt (Math / Logic Invariant):</label>
+                  <input type="text" id="input-train-prompt" class="form-control" value="Prove that sum(1..n) = n*(n+1)/2.">
+                </div>
+                <div>
+                  <label class="form-label">Target Verifiable Ground Truth:</label>
+                  <input type="text" id="input-train-expected" class="form-control" value="n*(n+1)/2">
+                </div>
+              </div>
+              <button class="btn btn-primary" id="btn-run-grpo-step">🧠 Execute GRPO Rollout & Policy Optimization Step</button>
+            </div>
+          </div>
+
+          <!-- Right: Candidate Group Evaluations & Advantages -->
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">👥 Group Relative Rollout Candidates (Group Size G=4)</span>
+              <span class="badge-telemetry" id="badge-kl-div">KL Div: 0.014</span>
+            </div>
+            <div class="candidates-feed" id="candidates-container">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: REWARD MODELS -->
+      <section id="tab-rewards" class="tab-pane">
+        <div class="gym-layout-grid">
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">🎯 Verifiable Reward Breakdown</span>
+            </div>
+            <div class="rewards-grid">
+              <div class="metric-card">
+                <span class="metric-label">Format Reward (<think> tags)</span>
+                <span class="metric-val" style="color: #38bdf8;">Weight: 30%</span>
+              </div>
+              <div class="metric-card metric-card-highlight">
+                <span class="metric-label">Accuracy / Ground Truth</span>
+                <span class="metric-val" style="color: #10b981;">Weight: 50%</span>
+              </div>
+              <div class="metric-card">
+                <span class="metric-label">Code Syntax AST Validity</span>
+                <span class="metric-val" style="color: #fbbf24;">Weight: 20%</span>
+              </div>
+              <div class="metric-card">
+                <span class="metric-label">Critic Model Memory Overhead</span>
+                <span class="metric-val" style="color: #34d399;">0 MB (Critic-Free!)</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <span class="panel-title">🔬 GRPO Mathematical Superiority</span>
+            </div>
+            <div style="padding: 16px; font-size: 12.5px; color: var(--text-muted); line-height: 1.6;">
+              <p><strong style="color: #fff;">Come Funziona GRPO (Group Relative Policy Optimization):</strong></p>
+              <p>A differenza del vecchio PPO (usato da OpenAI) che richiede un secondo modello gigante "Critico" per stimare i valori consumando il doppio della VRAM, **GRPO campiona un gruppo di 4 risposte** per lo stesso prompt e calcola il vantaggio relativo normalizzando la media e la deviazione standard del gruppo:</p>
+              <p style="font-family: var(--font-mono); color: #38bdf8;">A_i = (Reward_i - Mean(Group)) / Std(Group)</p>
+              <p>Questo permette di addestrare modelli di ragionamento stile **DeepSeek-R1** direttamente sul tuo computer con soli **8 GB di memoria**!</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: 5 COMPETITOR BENCHMARK -->
+      <section id="tab-competitors" class="tab-pane">
+        <div class="panel" style="height: 100%;">
+          <div class="panel-header">
+            <span class="panel-title">📊 Comprehensive Comparison: RL-Reasoning Gym vs Top 5 Competitors</span>
+          </div>
+          <div class="table-container" id="competitor-table-container">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

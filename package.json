@@ -1,0 +1,11 @@
+{
+  "name": "rl-reasoning-gym",
+  "version": "1.0.0",
+  "description": "Local Group Relative Policy Optimization (GRPO) Reinforcement Learning Studio (DeepSeek-R1 Style)",
+  "type": "module",
+  "main": "server.ts",
+  "scripts": {
+    "start": "bun server.ts"
+  },
+  "dependencies": {}
+}
