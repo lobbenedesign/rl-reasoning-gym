@@ -41,6 +41,10 @@ Training reasoning models using legacy PPO (Proximal Policy Optimization) requir
    * Real-time rendering of mean reward and the diagnostic policy-loss proxy across the steps you actually ran.
 4. **🖥️ Local Ollama Models**:
    * Works with whatever models you have pulled locally (e.g. `llama3.2:3b`, `qwen2.5:7b`, `granite3-dense:2b`) — requires Ollama running at `localhost:11434`.
+5. **🧪 Verifiable code-execution reward (RLVR-style)**:
+   * Real RL frameworks this project's GRPO implementation is conceptually adjacent to — HuggingFace TRL's `GRPOTrainer` (pluggable `reward_funcs`) and open-r1's `code_reward` — score code tasks by actually *executing* the candidate against unit tests, not by string-matching. Before this feature, `src/reward_models.ts` only checked whether `expectedAnswer` appeared as a substring of the response, so a candidate could earn full accuracy credit by mentioning the right words without the code working, or lose credit for correct code phrased differently.
+   * Pass `codeTestCases: [{input: [...], expectedOutput: ...}]` to `POST /api/train/step` and the accuracy reward for every candidate in the group is now computed by extracting its fenced code block, running it in an isolated Bun Worker (`src/code_exec_worker.ts`, `src/code_execution_reward.ts`) against every real test case, and reporting the true `testsPassed/totalTests` pass rate (returned per-candidate as `codeExecution`).
+   * **Verified in this environment**: a live 3-candidate GRPO step against `granite3-dense:2b` for "write a `double(x)` function" produced 3/3 candidates each passing all 3 real test cases (`double(2)=4`, `double(0)=0`, `double(-3)=-6`). A second control run against a deliberately wrong expected value (`triple(2)` asserted to equal `999`) correctly scored `accuracyReward: 0` with the real mismatch logged (`expected 999, got 6`), confirming the reward is driven by genuine execution, not by guessing.
 
 ---
 
@@ -85,6 +89,7 @@ L'algoritmo **GRPO (Group Relative Policy Optimization)**, reso popolare da **De
 2. **🎯 Ricompense Verificabili Automatiche**: Valuta i tag `<think>`, la corrispondenza testuale con la risposta attesa e la sintassi del codice.
 3. **📈 Curve in Tempo Reale**: Grafici su Canvas 2D per il reward medio e la loss diagnostica calcolati sugli step realmente eseguiti.
 4. **🖥️ Modelli Ollama Locali**: Funziona con i modelli che hai scaricato in locale (es. `llama3.2:3b`, `qwen2.5:7b`, `granite3-dense:2b`) — richiede Ollama attivo su `localhost:11434`.
+5. **🧪 Reward verificabile via esecuzione di codice (stile RLVR)**: framework reali come `GRPOTrainer` di HuggingFace TRL e il `code_reward` di open-r1 valutano i task di codice eseguendo davvero il candidato contro test unitari, non con il matching testuale. Prima di questa feature, `src/reward_models.ts` verificava solo se `expectedAnswer` compariva come sottostringa. Passando `codeTestCases` a `POST /api/train/step`, ogni candidato viene ora eseguito realmente in un Worker Bun isolato contro i test forniti, con `testsPassed/totalTests` reale riportato in `codeExecution`. Verificato in questo ambiente: 3/3 candidati generati da `granite3-dense:2b` hanno superato realmente 3/3 test per una funzione `double`; un run di controllo con un valore atteso deliberatamente sbagliato ha correttamente ottenuto `accuracyReward: 0` con il log reale del mismatch.
 
 ---
 

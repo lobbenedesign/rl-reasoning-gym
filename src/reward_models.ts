@@ -2,7 +2,15 @@
  * 🎯 Verifiable Reward Models for GRPO Training
  * Evaluates candidate responses using verifiable logic, syntax checking,
  * reasoning tag validation (<think>), and mathematical equivalence.
+ *
+ * When real `codeTestCases` are supplied (RLVR-style), the accuracy reward
+ * is computed from ACTUAL code execution (see code_execution_reward.ts)
+ * instead of substring matching — closing a gap against HuggingFace TRL /
+ * open-r1's executable "code_reward" for verifiable-reward RL. See
+ * code_execution_reward.ts for the full rationale and competitor citation.
  */
+
+import { CodeExecutionRewardEngine, type CodeTestCase, type CodeExecutionResult } from "./code_execution_reward";
 
 export interface CandidateEvaluation {
   candidateId: string;
@@ -13,10 +21,17 @@ export interface CandidateEvaluation {
   syntaxReward: number; // 0.0 - 1.0
   totalReward: number; // weighted sum
   normalizedAdvantage: number;
+  codeExecution?: CodeExecutionResult; // present only when codeTestCases were supplied
 }
 
 export class RewardModelEngine {
-  public evaluateGroup(candidates: { id: string; response: string }[], expectedAnswer: string): CandidateEvaluation[] {
+  private codeEngine = new CodeExecutionRewardEngine();
+
+  public async evaluateGroup(
+    candidates: { id: string; response: string }[],
+    expectedAnswer: string,
+    codeTestCases?: CodeTestCase[]
+  ): Promise<CandidateEvaluation[]> {
     const evals: CandidateEvaluation[] = [];
 
     for (const cand of candidates) {
@@ -28,7 +43,12 @@ export class RewardModelEngine {
 
       // 2. Accuracy Reward
       let accScore = 0.0;
-      if (resp.includes(expectedAnswer)) {
+      let codeExecution: CodeExecutionResult | undefined;
+      if (codeTestCases && codeTestCases.length > 0) {
+        // RLVR path: real execution-based reward, not text matching.
+        codeExecution = await this.codeEngine.evaluate(resp, codeTestCases);
+        accScore = codeExecution.passRate;
+      } else if (resp.includes(expectedAnswer)) {
         accScore = 1.0;
       } else if (resp.toLowerCase().includes(expectedAnswer.toLowerCase().slice(0, 10))) {
         accScore = 0.5;
@@ -51,7 +71,8 @@ export class RewardModelEngine {
         accuracyReward: accScore,
         syntaxReward: syntaxScore,
         totalReward: total,
-        normalizedAdvantage: 0
+        normalizedAdvantage: 0,
+        codeExecution
       });
     }
 

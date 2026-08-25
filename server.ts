@@ -80,8 +80,11 @@ const server = Bun.serve({
         const expected = body.expectedAnswer || "n*(n+1)/2";
         const groupSize = Number(body.groupSize) || 4;
         const model = body.model || "llama3.2:3b";
+        // RLVR path: real unit-test cases {input:[], expectedOutput} to execute
+        // each candidate's code against, instead of substring-matching text.
+        const codeTestCases = Array.isArray(body.codeTestCases) ? body.codeTestCases : undefined;
 
-        const stepResult = await trainer.runStep(prompt, expected, groupSize, model);
+        const stepResult = await trainer.runStep(prompt, expected, groupSize, model, codeTestCases);
         return new Response(JSON.stringify(stepResult), { headers });
       } catch (e: any) {
         // No fake "success" fallback: a failed rollout is reported as an error.

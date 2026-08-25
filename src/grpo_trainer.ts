@@ -14,6 +14,7 @@
  */
 
 import { RewardModelEngine, CandidateEvaluation } from "./reward_models";
+import type { CodeTestCase } from "./code_execution_reward";
 import { ollamaGenerate } from "./ollama_client";
 
 export interface GRPOTrainingStep {
@@ -39,7 +40,8 @@ export class GRPOTrainer {
     prompt: string,
     expectedAnswer: string,
     groupSize: number = 4,
-    model: string = "llama3.2:3b"
+    model: string = "llama3.2:3b",
+    codeTestCases?: CodeTestCase[]
   ): Promise<GRPOTrainingStep> {
     this.currentStep++;
     const step = this.currentStep;
@@ -84,7 +86,7 @@ export class GRPOTrainer {
 
     // 2. Score the REAL completions with the verifiable reward model and
     //    compute the exact group-relative advantage over the real rewards.
-    const evals = this.rewardEngine.evaluateGroup(candidates, expectedAnswer);
+    const evals = await this.rewardEngine.evaluateGroup(candidates, expectedAnswer, codeTestCases);
 
     const sumRewards = evals.reduce((sum, e) => sum + e.totalReward, 0);
     const meanReward = Number((sumRewards / evals.length).toFixed(3));
