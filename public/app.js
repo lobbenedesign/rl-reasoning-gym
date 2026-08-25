@@ -1,7 +1,8 @@
 /**
  * 🧠 RL-REASONING GYM CLIENT SCRIPT
- * Handles Canvas 2D Loss/Reward Curves, GRPO Optimization Steps,
- * Group Candidate Advantage Visualizer, and Competitor Benchmark Matrix.
+ * Handles Canvas 2D Loss/Reward Curves, GRPO Optimization Steps (real Ollama
+ * rollouts + real reward/advantage math), and the Continual Post-Training
+ * executable test suite.
  */
 
 let trainingHistory = [];
@@ -10,7 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupTabs();
   setupGRPOActions();
   setupPostTrainingActions();
-  fetchCompetitorMatrix();
+  checkOllamaStatus();
 });
 
 function setupTabs() {
@@ -28,16 +29,36 @@ function setupTabs() {
   });
 }
 
-// 1. GRPO Actions & Training Step
+async function checkOllamaStatus() {
+  const chip = document.getElementById("chip-ollama-status");
+  if (!chip) return;
+  try {
+    const res = await fetch("/api/status");
+    const data = await res.json();
+    chip.textContent = data.ollamaReachable
+      ? "🟢 Ollama reachable (real generations)"
+      : "🔴 Ollama NOT reachable — start it first";
+    chip.style.color = data.ollamaReachable ? "#34d399" : "#f87171";
+  } catch {
+    chip.textContent = "🔴 Server status unavailable";
+    chip.style.color = "#f87171";
+  }
+}
+
+// 1. GRPO Actions & Training Step (real Ollama rollouts, real reward math)
 function setupGRPOActions() {
   const btnRun = document.getElementById("btn-run-grpo-step");
   const inputPrompt = document.getElementById("input-train-prompt");
   const inputExpected = document.getElementById("input-train-expected");
+  const inputModel = document.getElementById("input-train-model");
   const candidatesContainer = document.getElementById("candidates-container");
   const canvas = document.getElementById("grpo-loss-canvas");
+  const errorBox = document.getElementById("grpo-error-box");
 
   async function executeStep() {
-    btnRun.textContent = "🧠 Sampling Candidate Group & Optimizing...";
+    btnRun.disabled = true;
+    btnRun.textContent = "🧠 Sampling real rollouts from Ollama (may take a while)...";
+    errorBox.style.display = "none";
     try {
       const res = await fetch("/api/train/step", {
         method: "POST",
@@ -45,18 +66,31 @@ function setupGRPOActions() {
         body: JSON.stringify({
           prompt: inputPrompt.value,
           expectedAnswer: inputExpected.value,
-          groupSize: 4
+          groupSize: 4,
+          model: inputModel.value
         })
       });
       const data = await res.json();
+
+      if (!res.ok) {
+        errorBox.style.display = "block";
+        errorBox.textContent = `⚠️ ${data.error || "GRPO step failed."}`;
+        return;
+      }
+
       trainingHistory.push(data);
 
       document.getElementById("chip-policy-loss").textContent = `📉 Policy Loss: ${data.policyLoss.toFixed(4)}`;
       document.getElementById("chip-mean-reward").textContent = `🎯 Mean Reward: ${data.meanReward.toFixed(2)}`;
       document.getElementById("badge-step-counter").textContent = `Step #${data.step}`;
-      document.getElementById("badge-kl-div").textContent = `KL Div: ${data.klDivergence.toFixed(4)}`;
+      document.getElementById("badge-std-reward").textContent = `Std Reward: ${data.stdReward.toFixed(3)}`;
 
-      // Render Group Candidates
+      if (data.generationErrors && data.generationErrors.length > 0) {
+        errorBox.style.display = "block";
+        errorBox.textContent = `⚠️ ${data.generationErrors.length} candidate(s) failed to generate: ${data.generationErrors.join(" | ")}`;
+      }
+
+      // Render Group Candidates (real Ollama completions)
       candidatesContainer.innerHTML = "";
       data.evaluations.forEach((cand, i) => {
         const isWinner = i === 0;
@@ -64,11 +98,11 @@ function setupGRPOActions() {
         card.className = `candidate-card ${isWinner ? 'cand-winner' : ''}`;
         card.innerHTML = `
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <strong style="color: #fff;">Candidate #${i + 1} (${cand.candidateId}) ${isWinner ? '🏆 [HIGHEST ADVANTAGE]' : ''}</strong>
+            <strong style="color: #fff;">Candidate #${i + 1} (${cand.candidateId}) ${isWinner ? '🏆 [HIGHEST REWARD]' : ''}</strong>
             <span style="font-family: var(--font-mono); color: #34d399; font-weight: 700;">Reward: ${cand.totalReward} | Adv: ${cand.normalizedAdvantage}</span>
           </div>
           <div style="font-size: 11px; color: var(--text-muted);">
-            Think Tags: ${cand.hasThinkTags ? '✓ <think>' : '✗ Missing'} • Accuracy: ${(cand.accuracyReward * 100).toFixed(0)}% • Syntax AST: ${(cand.syntaxReward * 100).toFixed(0)}%
+            Think Tags: ${cand.hasThinkTags ? '✓ <think>' : '✗ Missing'} • Accuracy: ${(cand.accuracyReward * 100).toFixed(0)}% • Syntax: ${(cand.syntaxReward * 100).toFixed(0)}%
           </div>
           <pre style="background: #080c14; padding: 8px; border-radius: 4px; color: #93c5fd; font-family: var(--font-mono); font-size: 11px; white-space: pre-wrap; max-height: 90px; overflow-y: auto;">${escapeHtml(cand.response)}</pre>
         `;
@@ -77,10 +111,12 @@ function setupGRPOActions() {
 
       // Render Loss Curves on Canvas
       drawCurves(canvas, trainingHistory);
-
-      btnRun.textContent = "🧠 Execute GRPO Rollout & Policy Optimization Step";
     } catch (e) {
-      btnRun.textContent = "🧠 Execute GRPO";
+      errorBox.style.display = "block";
+      errorBox.textContent = `⚠️ Request failed: ${e.message}`;
+    } finally {
+      btnRun.disabled = false;
+      btnRun.textContent = "🧠 Sample Real Rollouts from Ollama & Score Group";
     }
   }
 
@@ -145,7 +181,9 @@ function escapeHtml(text) {
   return text.replace(/[&<>"']/g, m => map[m]);
 }
 
-// 2. Post-Training (GLM-5.3 Style) Actions
+// 2. Continual Post-Training tab: executes a real 5-case JS test suite
+//    (baseline vs optimized snippet) and reports the ACTUAL pass/fail
+//    percentages returned by the server — no field is invented client-side.
 function setupPostTrainingActions() {
   const btnEpoch = document.getElementById("btn-run-posttrain-epoch");
   const baseInput = document.getElementById("input-base-checkpoint");
@@ -153,7 +191,8 @@ function setupPostTrainingActions() {
   const resultsBox = document.getElementById("posttrain-results-box");
 
   async function runEpoch() {
-    btnEpoch.textContent = "⚡ Running On-Policy Distillation (OPD)...";
+    btnEpoch.disabled = true;
+    btnEpoch.textContent = "⚡ Running baseline vs optimized test suite...";
     try {
       const res = await fetch("/api/train/post-training", {
         method: "POST",
@@ -165,66 +204,28 @@ function setupPostTrainingActions() {
       });
       const data = await res.json();
 
-      resultsBox.innerHTML = `
-        <strong style="color: #fff; font-size: 13px;">Epoch #${data.epoch} Completed: ${data.baseCheckpoint}</strong><br>
-        • <strong>Domain:</strong> <span style="color: #38bdf8;">${data.activeDomain}</span><br>
-        • <strong>Coding Accuracy:</strong> <span style="color: #f87171;">${data.codingAccuracyBefore}%</span> ➔ <strong style="color: #34d399; font-size: 14px;">${data.codingAccuracyAfter}% (+50% Gain!)</strong><br>
-        • <strong>Forgetting Anchor Penalty (KL):</strong> <span style="font-family: var(--font-mono); color: #c084fc;">${data.forgettingPenaltyKL} (Safe)</span><br>
-        • <strong>Distillation Loss:</strong> <span style="font-family: var(--font-mono); color: #fbbf24;">${data.distillationLoss}</span><br>
-        <span style="color: #34d399; font-weight: 600;">✓ Checkpoint refined successfully with zero catastrophic forgetting.</span>
-      `;
+      if (!res.ok) {
+        resultsBox.innerHTML = `<span style="color:#f87171;">⚠️ ${data.error || "Post-training epoch failed."}</span>`;
+        return;
+      }
 
-      btnEpoch.textContent = "⚡ Run Continual Post-Training Epoch";
-    } catch {
-      btnEpoch.textContent = "⚡ Run Post-Training Epoch";
+      resultsBox.innerHTML = `
+        <strong style="color: #fff; font-size: 13px;">Epoch #${data.epoch}: ${data.baseCheckpoint}</strong><br>
+        • <strong>Domain (label):</strong> <span style="color: #38bdf8;">${data.activeDomain}</span><br>
+        • <strong>Test cases:</strong> ${data.totalTestSuiteCases}<br>
+        • <strong>Baseline pass rate:</strong> <span style="color: #f87171;">${data.baselineTestsPassed}/${data.totalTestSuiteCases} (${data.empiricalAccuracyBeforePercent}%)</span>
+          ➔ <strong style="color: #34d399; font-size: 14px;">Optimized: ${data.optimizedTestsPassed}/${data.totalTestSuiteCases} (${data.empiricalAccuracyAfterPercent}%)</strong><br>
+        • <strong>Measured gain:</strong> <span style="font-family: var(--font-mono); color: #fbbf24;">${data.empiricalGainPercent >= 0 ? '+' : ''}${data.empiricalGainPercent}%</span> (computed from the real test run above, not fixed)<br>
+        <span style="color: #34d399; font-weight: 600;">✓ ${data.optimizedTestsPassed}/${data.totalTestSuiteCases} optimized snippets passed real execution.</span>
+      `;
+    } catch (e) {
+      resultsBox.innerHTML = `<span style="color:#f87171;">⚠️ Request failed: ${e.message}</span>`;
+    } finally {
+      btnEpoch.disabled = false;
+      btnEpoch.textContent = "⚡ Execute Baseline vs Optimized Test Suite";
     }
   }
 
   btnEpoch?.addEventListener("click", runEpoch);
   runEpoch(); // Auto-run initial epoch
-}
-
-// 3. Competitors
-async function fetchCompetitorMatrix() {
-  const container = document.getElementById("competitor-table-container");
-  if (!container) return;
-
-  try {
-    const res = await fetch("/api/competitors");
-    const competitors = await res.json();
-
-    let html = `
-      <table class="bench-table">
-        <thead>
-          <tr>
-            <th>RL Framework / Competitor</th>
-            <th>GRPO Algorithm</th>
-            <th>Critic-Free</th>
-            <th>Apple Silicon Mac</th>
-            <th>Live Visual Curves</th>
-            <th>Verifiable Rewards</th>
-            <th>Min VRAM</th>
-          </tr>
-        </thead>
-        <tbody>
-    `;
-
-    competitors.forEach((c, i) => {
-      const isOur = i === 0;
-      html += `
-        <tr class="${isOur ? 'bench-row-highlight' : ''}">
-          <td>${c.name}</td>
-          <td>${c.grpoSupport ? '✓ Yes' : '✗ No'}</td>
-          <td>${c.requiresSeparateCritic ? '✗ Requires Critic' : '✓ Critic-Free'}</td>
-          <td>${c.localAppleSiliconMac ? '✓ Supported' : '✗ CUDA Only'}</td>
-          <td>${c.visualTrainingCurves ? '✓ Yes (Canvas 2D)' : '✗ CLI Only'}</td>
-          <td>${c.verifiableRewardEngine ? '✓ Yes' : '✗ No'}</td>
-          <td style="color: ${c.minVramRequiredGB <= 8 ? '#34d399' : '#f87171'}; font-weight: 700;">${c.minVramRequiredGB} GB</td>
-        </tr>
-      `;
-    });
-
-    html += `</tbody></table>`;
-    container.innerHTML = html;
-  } catch {}
 }

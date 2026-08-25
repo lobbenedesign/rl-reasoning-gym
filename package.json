@@ -1,7 +1,7 @@
 {
   "name": "rl-reasoning-gym",
   "version": "1.0.0",
-  "description": "Local Group Relative Policy Optimization (GRPO) Reinforcement Learning Studio (DeepSeek-R1 Style)",
+  "description": "Local GRPO (Group Relative Policy Optimization) reward/advantage scorer over real Ollama rollouts — no gradient updates, not a full training pipeline",
   "type": "module",
   "main": "server.ts",
   "scripts": {

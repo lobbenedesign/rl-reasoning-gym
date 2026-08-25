@@ -6,7 +6,7 @@
 
 import { GRPOTrainer } from "./src/grpo_trainer";
 import { ContinualPostTrainingEngine } from "./src/continual_post_training";
-import { RLCompetitorBenchmark } from "./src/competitor_benchmark";
+import { ollamaIsReachable } from "./src/ollama_client";
 import { join } from "path";
 import { existsSync } from "fs";
 
@@ -14,14 +14,17 @@ const PORT = Number(process.env.PORT) || 3008;
 
 const trainer = new GRPOTrainer();
 const postTrainer = new ContinualPostTrainingEngine();
-const benchmark = new RLCompetitorBenchmark();
 
 console.log(`\n======================================================`);
 console.log(`🧠 RL-REASONING GYM running on http://localhost:${PORT}`);
-console.log(`⚡ GRPO Critic-Free Policy Optimization: Ready`);
-console.log(`🚀 Scaled Continual Post-Training (GLM-5.3 Style): Online (+50% Coding Gain)`);
-console.log(`🎯 Multi-Task Verifiable Reward Functions: Online`);
-console.log(`📊 5-Competitor Benchmark Matrix: Active`);
+console.log(`⚡ GRPO group-relative reward/advantage scorer: Ready`);
+console.log(`🎯 Verifiable reward functions (real, deterministic): Online`);
+console.log(`⚙️  Rollouts are sampled from a real local Ollama model (no scripted text)`);
+ollamaIsReachable().then(ok => {
+  console.log(ok
+    ? `✅ Ollama reachable at http://localhost:11434 — real generations enabled`
+    : `⚠️  Ollama NOT reachable at http://localhost:11434 — /api/train/step will fail honestly until it is started`);
+});
 console.log(`======================================================\n`);
 
 const server = Bun.serve({
@@ -58,16 +61,17 @@ const server = Bun.serve({
 
     // 1. Status
     if (url.pathname === "/api/status" && req.method === "GET") {
+      const ollamaUp = await ollamaIsReachable();
       return new Response(JSON.stringify({
         status: "online",
         version: "1.0.0-rlgym",
-        algorithm: "GRPO (Group Relative Policy Optimization)",
+        algorithm: "GRPO (Group Relative Policy Optimization) — real reward/advantage math, no gradient update",
         criticFree: true,
-        supportedHardware: "Apple Silicon (MPS) & NVIDIA CUDA"
+        ollamaReachable: ollamaUp
       }), { headers });
     }
 
-    // 2. Run GRPO Training Step
+    // 2. Run a real GRPO rollout scoring step (samples from Ollama, no fabricated text)
     if (url.pathname === "/api/train/step" && req.method === "POST") {
       try {
         let body: any = {};
@@ -75,11 +79,13 @@ const server = Bun.serve({
         const prompt = body.prompt || "Prove that sum(1..n) = n*(n+1)/2.";
         const expected = body.expectedAnswer || "n*(n+1)/2";
         const groupSize = Number(body.groupSize) || 4;
+        const model = body.model || "llama3.2:3b";
 
-        const stepResult = await trainer.runStep(prompt, expected, groupSize);
+        const stepResult = await trainer.runStep(prompt, expected, groupSize, model);
         return new Response(JSON.stringify(stepResult), { headers });
       } catch (e: any) {
-        return new Response(JSON.stringify({ error: e.message }), { status: 500, headers });
+        // No fake "success" fallback: a failed rollout is reported as an error.
+        return new Response(JSON.stringify({ error: e.message }), { status: 502, headers });
       }
     }
 
@@ -104,11 +110,6 @@ const server = Bun.serve({
         grpo: trainer.getHistory(),
         postTraining: postTrainer.getEpochs()
       }), { headers });
-    }
-
-    // 5. 5-Competitor Matrix
-    if (url.pathname === "/api/competitors" && req.method === "GET") {
-      return new Response(JSON.stringify(benchmark.getComparison()), { headers });
     }
 
     return new Response("Not Found", { status: 404, headers });
