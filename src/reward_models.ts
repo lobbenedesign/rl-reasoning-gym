@@ -11,6 +11,7 @@
  */
 
 import { CodeExecutionRewardEngine, type CodeTestCase, type CodeExecutionResult } from "./code_execution_reward";
+import { cascadeScore, type VerifyResult } from "./tasks";
 
 export interface CandidateEvaluation {
   candidateId: string;
@@ -22,6 +23,7 @@ export interface CandidateEvaluation {
   totalReward: number; // weighted sum
   normalizedAdvantage: number;
   codeExecution?: CodeExecutionResult; // present only when codeTestCases were supplied
+  verification?: VerifyResult; // how the accuracy reward was decided (exact/numeric/substring/none)
 }
 
 export class RewardModelEngine {
@@ -44,14 +46,21 @@ export class RewardModelEngine {
       // 2. Accuracy Reward
       let accScore = 0.0;
       let codeExecution: CodeExecutionResult | undefined;
+      let verification: VerifyResult | undefined;
       if (codeTestCases && codeTestCases.length > 0) {
         // RLVR path: real execution-based reward, not text matching.
         codeExecution = await this.codeEngine.evaluate(resp, codeTestCases);
         accScore = codeExecution.passRate;
-      } else if (resp.includes(expectedAnswer)) {
-        accScore = 1.0;
-      } else if (resp.toLowerCase().includes(expectedAnswer.toLowerCase().slice(0, 10))) {
-        accScore = 0.5;
+      } else {
+        // Cascade scorer (reasoning-gym style, see tasks.ts): exact match ->
+        // numeric equivalence -> substring fallback. Replaces the old
+        // "substring only" check, which scored a correct numeric answer 0
+        // whenever it wasn't phrased with the exact expected string (e.g.
+        // response "The answer is 42." vs expectedAnswer "42" used to fail
+        // the substring check only if expectedAnswer itself wasn't literally
+        // present — cascadeScore extracts and compares the actual number).
+        verification = cascadeScore(resp, expectedAnswer);
+        accScore = verification.score;
       }
 
       // 3. Syntax & Structure Reward
@@ -72,7 +81,8 @@ export class RewardModelEngine {
         syntaxReward: syntaxScore,
         totalReward: total,
         normalizedAdvantage: 0,
-        codeExecution
+        codeExecution,
+        verification
       });
     }
 

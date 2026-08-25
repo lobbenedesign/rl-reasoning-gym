@@ -41,7 +41,8 @@ export class GRPOTrainer {
     expectedAnswer: string,
     groupSize: number = 4,
     model: string = "llama3.2:3b",
-    codeTestCases?: CodeTestCase[]
+    codeTestCases?: CodeTestCase[],
+    fewShotPreamble?: string
   ): Promise<GRPOTrainingStep> {
     this.currentStep++;
     const step = this.currentStep;
@@ -49,8 +50,11 @@ export class GRPOTrainer {
     // 1. Sample G REAL rollouts from a real local policy via Ollama.
     //    Different temperature/seed per sample so the group is genuinely
     //    diverse instead of G copies of one completion.
+    const preamble = fewShotPreamble
+      ? `Here is an example of a previously successful response to a similar task, for reference:\n${fewShotPreamble}\n\n`
+      : "";
     const systemPrompt =
-      `You are solving a verifiable reasoning task. Wrap your reasoning in <think>...</think> tags, ` +
+      `${preamble}You are solving a verifiable reasoning task. Wrap your reasoning in <think>...</think> tags, ` +
       `then give the final answer. Task: ${prompt}`;
 
     const generationErrors: string[] = [];
